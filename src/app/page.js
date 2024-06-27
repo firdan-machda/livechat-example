@@ -14,7 +14,6 @@ export default function Home() {
   const [wsInstance, setWsInstance] = useState(null);
   const [messages, setMessages] = useState([])
   const [text, setText] = useState("")
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState(null)
   const [choices, setChoices] = useState([])
   const [delay, setDelay] = useState(0)
@@ -24,34 +23,33 @@ export default function Home() {
     if (objDiv.children.length > 1) {
       objDiv.children[objDiv.children.length - 1].scrollIntoView({ behavior: 'smooth', block: 'end' })
     }
-  }, [messages, loading])
+  }, [messages])
 
 
   function establishWebsocket() {
     if (typeof window !== "undefined") {
-      const ws = new WebSocket("ws://localhost:8000/ws/chat/test/")
+      let token = localStorage.getItem('token')
+      const ws = new WebSocket(`ws://localhost:8000/ws/livechat/test/?token=${token}`)
+
       ws.onmessage = (e) => {
         console.log("WS", e.data)
         const parsed = JSON.parse(e.data)
-        switch (parsed.type) {
-          case "system":
-            if (parsed.message == "loading") {
-              setLoading(true)
-            } else if (parsed.message == "finished-loading") {
-              setLoading(false)
-            }
-            break;
-          case "action":
-            setChoices(parsed.choices)
-            break
-          default:
-            setMessages(arr => [...arr, parsed])
+        console.log(parsed)
+        setMessages(arr => [...arr, parsed])
+        // switch (parsed.type) {
+        //   case "system":
+            
+        //     break;
+        //   case "action":
+        //     setChoices(parsed.choices)
+        //     break
+        //   default:
+        //     setMessages(arr => [...arr, parsed])
 
-        }
+        // }
       }
       ws.onopen = (e) => {
         console.log("Connected")
-        setLoading(false)
       }
       ws.onclose = (e) => {
         console.log('Disconnected')
@@ -63,12 +61,20 @@ export default function Home() {
 
   useEffect(() => {
     console.log('call ws')
-
-    setLoading(true)
     establishWebsocket()
 
     return () => {
+      // go to login if token doesn't exist in local storage
+      let token = localStorage.getItem(token)
+      if (!token){
+        router.push('/login')
+      }
+
       // Cleanup on unmount if ws wasn't closed already
+      if (!wsInstance){
+        return
+      }
+
       if (wsInstance?.readyState !== 3) {
         console.log('call cleanup')
         wsInstance.close()
@@ -82,7 +88,6 @@ export default function Home() {
     if (text !== "") {
       wsInstance.send(JSON.stringify({ message: text, owner: "client" }))
       setText("")
-
     }
   }
 
@@ -93,12 +98,10 @@ export default function Home() {
 
   }
 
-  console.log(wsInstance?.readyState)
-
   return (
-    <main className={styles.main}>
-      <div className={styles.messages}>
-        <ul id="messages" className={styles.message_container}>
+    <main className="flex flex-col items-center justify-between h-dvh py-2">
+      <div className="flex flex-col items-center justify-center w-full">
+        <ul id="messages" className="flex flex-col items-start space-y-4">
           <TransitionGroup>
             {
               messages.map((val, index) => {
@@ -129,41 +132,22 @@ export default function Home() {
             }
             </TransitionGroup>
             <Actions choices={choices} submitAction={submitCoinFlipAction} />
-            <CSSTransition
-              key={-1}
-              timeout={1000}
-              classNames=""
-              in={loading}
-            >
-              <>
-                {
-                  loading &&
-                  <li key={-1}>
-                    <Card
-                      message={<div className={styles.loader}></div>}
-                    />
-                  </li>
-                }
-              </>
-            </CSSTransition>
             {
               error && <li>
                 {error}
               </li>
             }
-
         </ul>
 
       </div>
-      <div className={styles.chat_input}>
+      <div className="flex items-center space-x-4 mt-8">
         <Image src="/media/user.png" width={60} height={60}></Image>
         <textarea
           value={text}
-          className={styles.input}
           id="chat-input"
           placeholder="Type here..."
+          className="w-full h-12 px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:border-indigo-500"
           onChange={(e) => setText(e.target.value)}
-          disabled={loading || choices.length > 0}
         >
         </textarea>
         <button className={styles.send_button} onClick={submit}><Image src="/media/paper-plane.png" width={60} height={60}></Image></button>
